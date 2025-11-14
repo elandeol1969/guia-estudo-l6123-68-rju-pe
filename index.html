@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -179,10 +178,33 @@
         .quiz-options label:hover {
             background-color: #c5cae9;
         }
+        /* Desabilitar hover para opções já clicadas para evitar mudança visual após a correção */
+        .quiz-options label.correct-answer:hover,
+        .quiz-options label.incorrect-selected:hover {
+            background-color: inherit; /* Volta para a cor original ou a cor da classe */
+        }
+
 
         .quiz-options input[type="radio"] {
             margin-right: 10px;
         }
+
+        /* Novas classes para feedback visual das opções */
+        .quiz-options label.correct-answer {
+            background-color: #d4edda; /* Verde claro */
+            border: 1px solid #28a745;
+        }
+
+        .quiz-options label.incorrect-selected {
+            background-color: #f8d7da; /* Vermelho claro */
+            border: 1px solid #dc3545;
+        }
+
+        /* Esconder o radio button quando uma opção for selecionada para não interferir no visual */
+        .quiz-options input[type="radio"]:checked {
+            pointer-events: none; /* Impede novos cliques no mesmo radio */
+        }
+        /* Fim das novas classes */
 
         .btn-check {
             background-color: var(--cor-primaria);
@@ -487,14 +509,17 @@
                 qDiv.className = 'quiz-question';
                 qDiv.id = `question-${index}`;
                 
+                // Mapeia as opções para criar os labels com inputs radio
+                const optionsHtml = q.options.map((option, optIndex) => `
+                    <label id="q${index}-option-${optIndex}">
+                        <input type="radio" name="q${index}" value="${option}" onchange="checkAnswer(${index}, this)"> ${option}
+                    </label>
+                `).join('');
+
                 qDiv.innerHTML = `
                     <p>Q${index + 1}. ${q.question}</p>
                     <div class="quiz-options">
-                        ${q.options.map((option, optIndex) => `
-                            <label>
-                                <input type="radio" name="q${index}" value="${option}"> ${option}
-                            </label>
-                        `).join('')}
+                        ${optionsHtml}
                     </div>
                     <div id="feedback-${index}" class="feedback"></div>
                 `;
@@ -503,29 +528,71 @@
             document.getElementById('submit-quiz').style.display = 'block';
         }
 
+        // Nova função para verificar a resposta imediatamente
+        function checkAnswer(questionIndex, selectedInput) {
+            const questionData = quizData[questionIndex];
+            const feedbackDiv = document.getElementById(`feedback-${questionIndex}`);
+            const selectedLabel = selectedInput.closest('label');
+            const allOptionsInQuestion = document.querySelectorAll(`#question-${questionIndex} .quiz-options label`);
+
+            // Desabilitar todos os radio buttons da questão após uma escolha
+            allOptionsInQuestion.forEach(label => {
+                label.querySelector('input[type="radio"]').disabled = true;
+            });
+
+            // Remover classes de feedback anteriores (se houver)
+            allOptionsInQuestion.forEach(label => {
+                label.classList.remove('correct-answer', 'incorrect-selected');
+            });
+
+            // Marcar a opção correta em verde
+            allOptionsInQuestion.forEach(label => {
+                const input = label.querySelector('input');
+                if (input.value === questionData.answer) {
+                    label.classList.add('correct-answer');
+                }
+            });
+
+            // Verificar se a opção selecionada está correta ou incorreta
+            if (selectedInput.value === questionData.answer) {
+                feedbackDiv.className = 'feedback correct';
+                feedbackDiv.innerHTML = 'Correto! 🎉';
+            } else {
+                selectedLabel.classList.add('incorrect-selected');
+                feedbackDiv.className = 'feedback incorrect';
+                feedbackDiv.innerHTML = `❌ Incorreto. Resposta correta: <strong>${questionData.answer}</strong>.<br>Detalhe: ${questionData.explanation}`;
+            }
+            feedbackDiv.style.display = 'block';
+        }
+
+
         function submitQuiz() {
             let score = 0;
             const totalQuestions = quizData.length;
 
             quizData.forEach((q, index) => {
-                const selectedOption = document.querySelector(`input[name="q${index}"]:checked`);
+                const selectedOptionInput = document.querySelector(`input[name="q${index}"]:checked`);
                 const feedbackDiv = document.getElementById(`feedback-${index}`);
-                feedbackDiv.style.display = 'block';
                 
-                if (selectedOption) {
-                    const selectedValue = selectedOption.value;
-                    
-                    if (selectedValue === q.answer) {
-                        score++;
-                        feedbackDiv.className = 'feedback correct';
-                        feedbackDiv.innerHTML = 'Correto! 🎉';
-                    } else {
-                        feedbackDiv.className = 'feedback incorrect';
-                        feedbackDiv.innerHTML = `❌ Incorreto. Resposta correta: <strong>${q.answer}</strong>.<br>Detalhe: ${q.explanation}`;
-                    }
-                } else {
+                // A cor de fundo já foi aplicada pela função checkAnswer.
+                // Aqui, apenas garantimos que o feedback de texto esteja visível
+                // e contamos os acertos para o score final.
+
+                if (selectedOptionInput && selectedOptionInput.value === q.answer) {
+                    score++;
+                } else if (!selectedOptionInput) {
+                     // Se não houver opção selecionada, mostramos a mensagem de não respondida
                     feedbackDiv.className = 'feedback incorrect';
                     feedbackDiv.innerHTML = '⚠️ Não respondida.';
+                    feedbackDiv.style.display = 'block';
+
+                    // E garantimos que a resposta correta esteja visível
+                    document.querySelectorAll(`#question-${index} .quiz-options label`).forEach(label => {
+                        const input = label.querySelector('input');
+                        if (input.value === q.answer) {
+                            label.classList.add('correct-answer');
+                        }
+                    });
                 }
             });
 
